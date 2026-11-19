@@ -43,29 +43,20 @@ if (!KEY_ID.startsWith('rzp_test_') && !KEY_ID.startsWith('rzp_live_')) {
 }
 
 // ============================================================
-// FIREBASE ADMIN — SAFE INITIALIZATION
+// FIREBASE ADMIN — MODULAR API (works with firebase-admin v10 → latest)
 // ============================================================
-let admin
+let getApps, initializeApp, cert, getDatabase
 try {
-  admin = require('firebase-admin')
+  ;({ getApps, initializeApp, cert } = require('firebase-admin/app'))
+  ;({ getDatabase } = require('firebase-admin/database'))
 } catch (e) {
-  console.error('❌ Failed to require firebase-admin:', e.message)
+  console.error('❌ Failed to load firebase-admin:', e.message)
   console.error('   Run: cd server && npm install firebase-admin@latest')
-  process.exit(1)
-}
-if (!admin || typeof admin !== 'object') {
-  console.error('❌ firebase-admin loaded but is not an object. Reinstall the package.')
   process.exit(1)
 }
 
 function initFirebaseAdmin() {
-  const apps = admin.apps || (typeof admin.app === 'function' ? [admin.app()] : null)
-  if (!apps) {
-    console.error('❌ firebase-admin does not expose .apps or .app(). Version mismatch?')
-    console.error('   Installed version:', require('firebase-admin/package.json').version)
-    process.exit(1)
-  }
-  if (Array.isArray(apps) && apps.length > 0) return
+  if (getApps().length > 0) return
 
   const credPath = process.env.GOOGLE_APPLICATION_CREDENTIALS
   const absPath = credPath
@@ -79,8 +70,8 @@ function initFirebaseAdmin() {
 
   try {
     const serviceAccount = JSON.parse(fs.readFileSync(absPath, 'utf8'))
-    admin.initializeApp({
-      credential: admin.credential.cert(serviceAccount),
+    initializeApp({
+      credential: cert(serviceAccount),
       databaseURL: process.env.FIREBASE_DATABASE_URL
         || `https://${serviceAccount.project_id}-default-rtdb.firebaseio.com`,
     })
@@ -168,9 +159,6 @@ app.post('/razorpay/verify', async (req, res) => {
       .update(`${razorpay_order_id}|${razorpay_payment_id}`)
       .digest('hex')
 
-    console.log('[verify] received:', razorpay_signature)
-    console.log('[verify] expected:', expectedSignature)
-
     if (expectedSignature !== razorpay_signature) {
       console.error('[verify] ❌ signature mismatch')
       return res.status(400).json({ ok: false, error: 'Invalid signature' })
@@ -190,7 +178,7 @@ app.post('/razorpay/verify', async (req, res) => {
       return res.status(400).json({ ok: false, error: 'Order has no pack metadata' })
     }
 
-    const db = admin.database()
+    const db = getDatabase()
     const processedRef = db.ref(`processedPayments/${razorpay_payment_id}`)
     const already = await processedRef.once('value')
     if (already.exists()) {
@@ -218,15 +206,15 @@ app.get('/health', (_req, res) => {
   res.json({
     ok: true,
     keyIdPrefix: KEY_ID.slice(0, 10),
-    firebase: !!admin.apps?.length || !!admin.app?.(),
+    firebase: getApps().length > 0,
     packsLoaded: Object.keys(DIAMOND_PACKS).length,
   })
 })
 
 // ============================================================
-// START
+// START — bind to all interfaces so phones on the same Wi-Fi can reach it
 // ============================================================
-app.listen(PORT, () => {
+app.listen(PORT, '0.0.0.0', () => {
   console.log(`🚀 Server on http://localhost:${PORT}`)
   console.log(`   Key ID: ${KEY_ID.slice(0, 12)}…`)
   console.log(`   Secret set: ${!!KEY_SECRET}`)
