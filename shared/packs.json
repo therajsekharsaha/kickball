@@ -1,0 +1,9 @@
+{
+  "DIAMOND_PACKS": [
+    { "id": "d50",   "diamonds": 50,   "priceINR": 1,   "label": "Starter" },
+    { "id": "d120",  "diamonds": 120,  "priceINR": 99,  "label": "Popular" },
+    { "id": "d300",  "diamonds": 300,  "priceINR": 199, "label": "Best value" },
+    { "id": "d800",  "diamonds": 800,  "priceINR": 499, "label": "Mega" },
+    { "id": "d1000", "diamonds": 1000, "priceINR": 599, "label": "Mega-max" }
+  ]
+}
